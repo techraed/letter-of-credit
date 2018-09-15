@@ -13,4 +13,4 @@ A letter of credit provides an irrevocable guarantee to the exporter that, provi
 
 # TODO:
 1) Gas optimisation;
-2) Modification for applied purposes on the basis of real bargains
+2) Modification for applied purposes on the basis of real bargains;
