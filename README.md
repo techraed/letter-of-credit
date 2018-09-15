@@ -4,3 +4,13 @@ A letter of credit provides an irrevocable guarantee to the exporter that, provi
 
 
 ![Mechanism](http://tfig.unece.org/contents/images/Letterofcredit.jpg)
+
+
+# Run (test)
+1) run ```truffle develop```, ```ganache``` (make sure your ganache settings fit truffle developing settings)
+2) migrate contracts to ganache
+3) enjoy testing functions
+
+# TODO:
+1) Gas optimisation;
+2) Modification for applied purposes on the basis of real bargains
