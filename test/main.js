@@ -2,10 +2,10 @@
 
 const LOC = artifacts.require("./LetterOfCredit.sol");
 
-const DEPLOYER_ADDRESS = "0x627306090abaB3A6e1400e9345bC60c78a8BEf57";
-const AGENT_ONE = "0xf17f52151EbEF6C7334FAD080c5704D77216b732";
-const AGENT_TWO = "0xC5fdf4076b8F3A5357c5E395ab970B5B54098Fef";
-const AGENT_THREE = "0x0d1d4e623D10F9FBA5Db95830F7d3839406C6AF2";
+const DEPLOYER_ADDRESS = "0x39770f90A657953Ec562DaC2b2Bd6350b6dF0271";
+const AGENT_ONE = "0x0cA6Fc87e5a70FcDCd3f15197C467bCa85D79330";
+const AGENT_TWO = "0xe71eF9f14FD26a074436f05952Adc6d1E792df74";
+const AGENT_THREE = "0x9cb50b54BC413fC1eb5D067d5bdfaDe6B43ee341";
 
 contract("Letter of credit tests", async () => {
     it("setting contract balances for 2 agents", async () => {
