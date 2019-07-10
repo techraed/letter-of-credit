@@ -1,45 +1,33 @@
 {
-  "name": "fin_products",
+  "name": "financial-products",
   "version": "0.0.1",
-  "description": "blockchain alternative to financial products",
+  "description": "some financial and bank products implemented on ethereum blockchain",
   "main": "truffle-config.js",
   "directories": {
     "test": "test"
   },
+  "dependencies": {
+    "mem": "^5.1.1",
+    "truffle": "^5.0.21"
+  },
+  "devDependencies": {},
   "scripts": {
     "test": "truffle test"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/SabaunT/FinancialProducts"
-  },
-  "dependencies": {
-    "bn.js": "4.11.8",
-    "chai": "4.2.0",
-    "chai-bignumber": "3.0.0",
-    "diff": "^4.0.1",
-    "dotenv": "^8.0.0",
-    "npx": "^10.2.0",
-    "openzeppelin-solidity": "2.3.0",
-    "openzeppelin-test-helpers": "0.4.0",
-    "solidity-docgen": "^0.2.0-alpha.1",
-    "truffle": "5.0.21",
-    "truffle-hdwallet-provider": "^1.0.12"
+    "url": "git+https://github.com/SabaunT/financial-products.git"
   },
   "keywords": [
     "Finance",
     "Banking",
-    "Bank",
-    "products",
-    "Financial",
-    "products",
-    "Transparency",
-    "DeFi"
+    "Blockchain",
+    "Solidity"
   ],
   "author": "SabaunT",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/SabaunT/FinancialProducts/issues"
+    "url": "https://github.com/SabaunT/financial-products/issues"
   },
-  "homepage": "https://github.com/SabaunT/FinancialProducts#readme"
+  "homepage": "https://github.com/SabaunT/financial-products#readme"
 }
