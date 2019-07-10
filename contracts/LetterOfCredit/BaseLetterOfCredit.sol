@@ -18,7 +18,7 @@ contract BaseLetterOfCredit {
     struct Bargain {
         uint256 bargainSum;
         uint256 lockTime; // we need an arbiter in case on of parties leaves during or after lock
-        string description;
+        string description;   // update: we don't need him if withdraw could be provided by any of addresses.
     }
     mapping(address => Bargain) public bargainInitializedBy;
     
