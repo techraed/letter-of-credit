@@ -1,4 +1,4 @@
-pragma solidity 0.5.8;
+pragma solidity 0.5.10;
 
 
 import "../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
