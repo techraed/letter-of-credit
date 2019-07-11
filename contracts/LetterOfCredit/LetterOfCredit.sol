@@ -38,8 +38,15 @@ contract BaseLetterOfCredit {
         require(_sum == msg.value, "Bargain sum should equal to the amount of ether sent");
         require(_bargainPeriod > 0 && _bargainPeriod < 3600 * 24 * 30 * 12 * 5, "Invalid bargain period");
 
-        Bargain memory newBargain = Bargain({bargainSum: _sum, bargainPeriod: _bargainPeriod, description: description});
+        Bargain memory newBargain = Bargain(_sum,  _bargainPeriod, description);
         bargainInitializedBy[msg.sender] = newBargain;
+    }
+
+    function approveBargain() external returns (bool) {
+        /**
+         * проблема в том, что если второй сольется, то мы это быстро решим позволив любому вызвать метод транзакции в пользу второго
+         * ну а если сольется первый? в таком случае решением является участие третьего лица
+         */ 
     }
 
     function isActiveBargain(address _initializer) private view returns (bool) {
