@@ -12,7 +12,12 @@ contract BaseLetterOfCredit {
         _;
     }
 
-    modifier canInitializeBargain(uint256 _sum, uint256 _controlledPaymentDeadline) {
+    modifier onlyShippingManager {
+        require(msg.sender == shippingManager, "Invalid access");
+        _;
+    }
+
+    modifier canInitializeBargain(uint256 _sum, uint256 _bargainDeadline) {
         require(
             bargainInitializedBy[msg.sender].bargainState == States.ZS ||
             bargainInitializedBy[msg.sender].bargainState == States.FINISHED,
@@ -21,33 +26,23 @@ contract BaseLetterOfCredit {
         require(_sum > 0, "Bargain sum can't be less than 0");
         require(_sum == msg.value, "Bargain sum should equal to the amount of ether sent");
         require(
-            _controlledPaymentDeadline > now && _controlledPaymentDeadline < now + 3600 * 24 * 30 * 12 * 2,
+            _bargainDeadline > now && _bargainDeadline < now + 3600 * 24 * 30 * 12 * 2,
             "Invalid bargain period"
         );
         _;
     }
 
-    modifier canCancelBargain {
-        require(
-            bargainInitializedBy[msg.sender].bargainState == States.INIT ||
-            (bargainInitializedBy[msg.sender].bargainState == States.READY && 
-            now > bargainInitializedBy[msg.sender].controlledPaymentDeadline),
-            "Not correct state for cancellation"
-        );
-        _;
-    }
-
-    enum States{ZS, INIT, READY, SENT, ACCEPT, FINISHED}
+    enum States{ZS, INIT, VALIDATED, SENT, ACCEPTED, DECLINED, FINISHED}
 
     address public firstParty;
     address public secondParty;
+    address public shippingManager;
 
     struct Bargain {
         uint256 bargainSum;
-        uint256 controlledPaymentDeadline;
         string description;
+        uint256 bargainDeadline;
         States bargainState;
-        address recepient;
     }
     mapping(address => Bargain) public bargainInitializedBy;
 
@@ -56,18 +51,18 @@ contract BaseLetterOfCredit {
         secondParty = _secondParty;
     }
 
-    function createBargain(uint256 _sum, uint256 _controlledPaymentDeadline, string calldata _description)
+    ///FROM STATE 0 TO STATE 1
+    function createBargain(uint256 _sum, uint256 _bargainDeadline, string calldata _description)
         external
         payable
         onlyParties
-        canInitializeBargain(_sum, _controlledPaymentDeadline)
+        canInitializeBargain(_sum, _bargainDeadline)
         returns (bool)
     {
-        address _recepient = getOtherParty(msg.sender);
+        ///address _recepient = getOtherParty(msg.sender);
         Bargain memory newBargain = Bargain({ // это дешево? а в одну строку на 72 строчке?
-            recepient: _recepient,
             bargainSum: _sum,
-            controlledPaymentDeadline: _controlledPaymentDeadline,
+            bargainDeadline: _bargainDeadline,
             description: _description,
             bargainState: States.INIT
         });
@@ -75,17 +70,65 @@ contract BaseLetterOfCredit {
         bargainInitializedBy[msg.sender] = newBargain;
     }
 
-    /// init and ready state only
-    function cancelBargain() external onlyParties canCancelBargain {
+    /// FROM STATE 1 AND 2 TO STATE 0
+    function cancelBargainBuyer() external onlyParties {
+        require(
+            bargainInitializedBy[msg.sender].bargainState == States.INIT ||
+            (bargainInitializedBy[msg.sender].bargainState == States.VALIDATED && 
+            now > bargainInitializedBy[msg.sender].bargainDeadline),
+            "Not correct state for buyer cancellation"
+        );
+
         bargainInitializedBy[msg.sender].bargainState = States.ZS;
         msg.sender.transfer(bargainInitializedBy[msg.sender].bargainSum);
     }
 
-    function gettingReadyToPay() external onlyParties {
+    function cancelBargainSeller() external onlyParties {
+        require(
+            bargainInitializedBy[getOtherParty(msg.sender)].bargainState == States.SENT &&
+            now > bargainInitializedBy[getOtherParty(msg.sender)].bargainDeadline,
+            "Not correct state for seller cancellation"
+        );
+
+        bargainInitializedBy[getOtherParty(msg.sender)].bargainState = States.ZS;
+        //msg.sender.transfer(generalFee);
+    }
+
+    /// FROM STATE 1 TO STATE 2
+    function getReadyToPay() external onlyParties {
         require(bargainInitializedBy[msg.sender].bargainState == States.INIT, "Wrong state");
 
-        bargainInitializedBy[msg.sender].bargainState = States.READY;
+        bargainInitializedBy[msg.sender].bargainState = States.VALIDATED;
         //emit
+    }
+
+    /// SELLER MOVES FROM STATE 2 TO STATE 3  <-- TRUST REQUIRED!
+    function shipBargain(address shippedTo) external onlyShippingManager {
+        require(bargainInitializedBy[shippedTo].bargainState == States.VALIDATED, "Wrong state");
+
+        bargainInitializedBy[shippedTo].bargainState = States.SENT;
+    }
+
+    function acceptBargain() external onlyParties {
+        require(bargainInitializedBy[msg.sender].bargainState == States.SENT, "Wrong state");
+
+        bargainInitializedBy[msg.sender].bargainState = States.ACCEPTED;
+    }
+
+    function declineBargain() external onlyParties {
+        require(bargainInitializedBy[msg.sender].bargainState == States.SENT, "Wrong state");
+
+        bargainInitializedBy[msg.sender].bargainState = States.DECLINED;
+    }
+
+    function getPayment() external onlyParties {
+        require(
+            bargainInitializedBy[getOtherParty(msg.sender)].bargainState == States.ACCEPTED ||
+            bargainInitializedBy[getOtherParty(msg.sender)].bargainState == States.DECLINED,
+            "Bargain wasn't accpeted, neither declined"
+        );
+
+        //вызов метода оплаты
     }
 
     function getOtherParty(address _sender) private view returns (address) {
