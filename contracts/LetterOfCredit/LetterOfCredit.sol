@@ -36,8 +36,8 @@ contract BaseLetterOfCredit {
 
     struct Bargain {
         uint256 bargainSum;
-        string description;
         uint256 bargainDeadline;
+        string description;
         States bargainState;
     }
     mapping(address => Bargain) public bargainInitializedBy;
