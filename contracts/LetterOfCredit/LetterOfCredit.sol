@@ -7,25 +7,16 @@ import "../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
 contract BaseLetterOfCredit {
     using SafeMath for uint256;
 
-    modifier onlyBuyer {
-        require(msg.sender == buyer, "Invalid access");
-        _;
-    }
-
-    modifier onlySeller {
-        require(msg.sender == seller, "Invalid access");
-        _;
-    }
-
-    modifier onlyShippingManager {
-        require(msg.sender == shippingManager, "Invalid access");
+    modifier onlyParties {
+        require(msg.sender == buyer || msg.sender == seller || msg.sender == shippingManager, "Invalid access");
         _;
     }
 
     modifier canInitializeBargain(uint256 _sum, uint256 _bargainDeadline) {
+        require(msg.sender == buyer, "Invalid access");
         require(
-            bargainInitializedBy[msg.sender].bargainState == States.ZS ||
-            bargainInitializedBy[msg.sender].bargainState == States.FINISHED,
+            bargainInitializedBy[buyer].bargainState == States.ZS ||
+            bargainInitializedBy[buyer].bargainState == States.FINISHED,
             "You can't initialize a new bargain"
         );
         require(_sum > 0, "Bargain sum can't be less than 0");
@@ -60,7 +51,6 @@ contract BaseLetterOfCredit {
     function createBargain(uint256 _sum, uint256 _bargainDeadline, string calldata _description)
         external
         payable
-        onlyBuyer
         canInitializeBargain(_sum, _bargainDeadline)
         returns (bool)
     {
@@ -74,8 +64,14 @@ contract BaseLetterOfCredit {
         bargainInitializedBy[msg.sender] = newBargain;
     }
 
+    function pushStateForwardTo(States _state) external onlyParties {
+        changeStateTo(_state);
+        //emit
+    }
+
     /// FROM STATE 1 AND 2 TO STATE 0
-    function cancelBargainBuyer() external onlyBuyer {
+    function cancelBargainBuyer() external {
+        require(msg.sender == buyer, "Invalid access");
         require(
             bargainInitializedBy[msg.sender].bargainState == States.INIT ||
             (bargainInitializedBy[msg.sender].bargainState == States.VALIDATED && 
@@ -90,7 +86,8 @@ contract BaseLetterOfCredit {
         //emit
     }
 
-    function cancelBargainSeller() external onlySeller {
+    function cancelBargainSeller() external {
+        require(msg.sender == seller, "Invalid access");
         require(
             bargainInitializedBy[buyer].bargainState == States.SENT &&
             now > bargainInitializedBy[buyer].bargainDeadline,
@@ -105,35 +102,6 @@ contract BaseLetterOfCredit {
         //emit
     }
 
-    /// FROM STATE 1 TO STATE 2
-    function getReadyToPay() external onlyBuyer {
-        require(bargainInitializedBy[msg.sender].bargainState == States.INIT, "Wrong state");
-
-        bargainInitializedBy[msg.sender].bargainState = States.VALIDATED;
-        //emit
-    }
-
-    /// SELLER MOVES FROM STATE 2 TO STATE 3  <-- TRUST REQUIRED!
-    function shipBargain(address shippedTo) external onlyShippingManager {
-        require(bargainInitializedBy[shippedTo].bargainState == States.VALIDATED, "Wrong state");
-
-        bargainInitializedBy[shippedTo].bargainState = States.SENT;
-        //emit
-    }
-
-    function acceptBargain() external onlyBuyer {
-        require(bargainInitializedBy[msg.sender].bargainState == States.SENT, "Wrong state");
-
-        bargainInitializedBy[msg.sender].bargainState = States.ACCEPTED;
-    }
-
-    function declineBargain() external onlyBuyer {
-        require(bargainInitializedBy[msg.sender].bargainState == States.SENT, "Wrong state");
-
-        bargainInitializedBy[msg.sender].bargainState = States.DECLINED;
-    }
-
-    /// не доделан
     function transferPaymentForParties() external {
         require(
             bargainInitializedBy[buyer].bargainState == States.ACCEPTED ||
@@ -149,6 +117,35 @@ contract BaseLetterOfCredit {
         }
         address(uint160(seller)).transfer(sumToSeller);
         //emit
+    }
+
+    function changeStateTo(States _state) private {
+        if (_state == States.VALIDATED) {
+            require(
+                msg.sender == buyer ||
+                bargainInitializedBy[msg.sender].bargainState == States.INIT
+            );
+
+            bargainInitializedBy[msg.sender].bargainState = States.VALIDATED;
+        }
+
+        if (_state == States.SENT) {
+            require(
+                msg.sender == shippingManager ||
+                bargainInitializedBy[buyer].bargainState == States.VALIDATED
+            );
+
+            bargainInitializedBy[buyer].bargainState = States.SENT;
+        }
+
+        if (_state == States.ACCEPTED || _state == States.DECLINED) {
+            require(
+                msg.sender == buyer ||
+                bargainInitializedBy[buyer].bargainState == States.SENT
+            );
+
+            bargainInitializedBy[msg.sender].bargainState = _state;
+        }
     }
 
     function calculatePaymentsInState(States _state) private view returns(uint256 sumToSeller, uint256 sumToBuyer) {
