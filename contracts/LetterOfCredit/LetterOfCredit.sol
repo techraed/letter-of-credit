@@ -7,8 +7,13 @@ import "../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
 contract BaseLetterOfCredit {
     using SafeMath for uint256;
 
-    modifier onlyParties {
-        require(msg.sender == firstParty || msg.sender == secondParty, "Invalid access");
+    modifier onlyBuyer {
+        require(msg.sender == buyer, "Invalid access");
+        _;
+    }
+
+    modifier onlySeller {
+        require(msg.sender == seller, "Invalid access");
         _;
     }
 
@@ -34,8 +39,8 @@ contract BaseLetterOfCredit {
 
     enum States{ZS, INIT, VALIDATED, SENT, ACCEPTED, DECLINED, FINISHED}
 
-    address public firstParty;
-    address public secondParty;
+    address public buyer;
+    address public seller;
     address public shippingManager;
 
     struct Bargain {
@@ -46,20 +51,19 @@ contract BaseLetterOfCredit {
     }
     mapping(address => Bargain) public bargainInitializedBy;
 
-    constructor(address _firstParty, address _secondParty) public {
-        firstParty = _firstParty;
-        secondParty = _secondParty;
+    constructor(address _buyer, address _seller) public {
+        buyer = _buyer;
+        seller = _seller;
     }
 
     ///FROM STATE 0 TO STATE 1
     function createBargain(uint256 _sum, uint256 _bargainDeadline, string calldata _description)
         external
         payable
-        onlyParties
+        onlyBuyer
         canInitializeBargain(_sum, _bargainDeadline)
         returns (bool)
     {
-        ///address _recepient = getOtherParty(msg.sender);
         Bargain memory newBargain = Bargain({ // это дешево? а в одну строку на 72 строчке?
             bargainSum: _sum,
             bargainDeadline: _bargainDeadline,
@@ -71,7 +75,7 @@ contract BaseLetterOfCredit {
     }
 
     /// FROM STATE 1 AND 2 TO STATE 0
-    function cancelBargainBuyer() external onlyParties {
+    function cancelBargainBuyer() external onlyBuyer {
         require(
             bargainInitializedBy[msg.sender].bargainState == States.INIT ||
             (bargainInitializedBy[msg.sender].bargainState == States.VALIDATED && 
@@ -80,22 +84,29 @@ contract BaseLetterOfCredit {
         );
 
         bargainInitializedBy[msg.sender].bargainState = States.ZS;
-        msg.sender.transfer(bargainInitializedBy[msg.sender].bargainSum);
+        
+        (, uint256 buyersRefund) = calculatePaymentsInState(States.INIT);
+        msg.sender.transfer(buyersRefund);
+        //emit
     }
 
-    function cancelBargainSeller() external onlyParties {
+    function cancelBargainSeller() external onlySeller {
         require(
-            bargainInitializedBy[getOtherParty(msg.sender)].bargainState == States.SENT &&
-            now > bargainInitializedBy[getOtherParty(msg.sender)].bargainDeadline,
+            bargainInitializedBy[buyer].bargainState == States.SENT &&
+            now > bargainInitializedBy[buyer].bargainDeadline,
             "Not correct state for seller cancellation"
         );
 
-        bargainInitializedBy[getOtherParty(msg.sender)].bargainState = States.ZS;
-        //msg.sender.transfer(generalFee);
+        bargainInitializedBy[buyer].bargainState = States.ZS;
+        
+        (uint256 compensationToSeller, uint256 returnedToBuyer) = calculatePaymentsInState(States.SENT);
+        msg.sender.transfer(compensationToSeller);
+        address(uint160(buyer)).transfer(returnedToBuyer);
+        //emit
     }
 
     /// FROM STATE 1 TO STATE 2
-    function getReadyToPay() external onlyParties {
+    function getReadyToPay() external onlyBuyer {
         require(bargainInitializedBy[msg.sender].bargainState == States.INIT, "Wrong state");
 
         bargainInitializedBy[msg.sender].bargainState = States.VALIDATED;
@@ -107,53 +118,55 @@ contract BaseLetterOfCredit {
         require(bargainInitializedBy[shippedTo].bargainState == States.VALIDATED, "Wrong state");
 
         bargainInitializedBy[shippedTo].bargainState = States.SENT;
+        //emit
     }
 
-    function acceptBargain() external onlyParties {
+    function acceptBargain() external onlyBuyer {
         require(bargainInitializedBy[msg.sender].bargainState == States.SENT, "Wrong state");
 
         bargainInitializedBy[msg.sender].bargainState = States.ACCEPTED;
     }
 
-    function declineBargain() external onlyParties {
+    function declineBargain() external onlyBuyer {
         require(bargainInitializedBy[msg.sender].bargainState == States.SENT, "Wrong state");
 
         bargainInitializedBy[msg.sender].bargainState = States.DECLINED;
     }
 
-    function getPayment() external onlyParties {
+    /// не доделан
+    function transferPaymentForParties() external {
         require(
-            bargainInitializedBy[getOtherParty(msg.sender)].bargainState == States.ACCEPTED ||
-            bargainInitializedBy[getOtherParty(msg.sender)].bargainState == States.DECLINED,
+            bargainInitializedBy[buyer].bargainState == States.ACCEPTED ||
+            bargainInitializedBy[buyer].bargainState == States.DECLINED,
             "Bargain wasn't accpeted, neither declined"
         );
 
-        //вызов метода оплаты
+        bargainInitializedBy[buyer].bargainState = States.FINISHED;
+        (uint256 sumToSeller, uint256 sumToBuyer) = calculatePaymentsInState(bargainInitializedBy[buyer].bargainState);
+
+        if (sumToBuyer != 0) {
+            address(uint160(buyer)).transfer(sumToBuyer);
+        }
+        address(uint160(seller)).transfer(sumToSeller);
+        //emit
     }
 
-    function getOtherParty(address _sender) private view returns (address) {
-        return _sender == firstParty ? secondParty : firstParty;
+    function calculatePaymentsInState(States _state) private view returns(uint256 sumToSeller, uint256 sumToBuyer) {
+        if (_state == States.INIT || _state == States.VALIDATED) {
+            sumToBuyer = bargainInitializedBy[buyer].bargainSum;
+            sumToSeller = 0;
+        }
+        if (_state == States.SENT) {
+            sumToSeller = (bargainInitializedBy[buyer].bargainSum.mul(30)).div(100);
+            sumToBuyer = (bargainInitializedBy[buyer].bargainSum).sub(sumToSeller);
+        }
+        if (_state == States.ACCEPTED) {
+            sumToBuyer = 0;
+            sumToSeller = bargainInitializedBy[buyer].bargainSum;
+        }
+        if (_state == States.DECLINED) {
+            sumToSeller = (bargainInitializedBy[buyer].bargainSum.mul(15)).div(100);
+            sumToBuyer = (bargainInitializedBy[buyer].bargainSum).sub(sumToSeller);
+        }
     }
-
-    /**
-    С переходом на стэйт РЭДИ, мы не видим возможности для атак: покупателю бессмысленно выходить, так как товар
-    он еще не получил, а продавец вообще не получит деньги. Случайный уход продавца может обеспечить обратное получение
-    денег для покупателя. Уход покупателя в данном случае мог бы повредить продавцу.  Если продавец не понял, что 
-    покупатель ушел, то он оффчейном готовит продукцию и идет в стэйт SENT (тут же готовит коммит-хэш а мб и без него, мол отправил че-то
-    там покупателю и жду его ответа). Проблема в том, что если здесь покупатель свалит, то продавец несет расходы на транспортировку. - НЕДОБРОСОВЕСТНЫЙ ПОКУПАТЕЛЬ
-
-    проблема решается с помощью cancelSellerFee -> выход из сделки сэллера после срока с уплатой ему 30% премии или транспортэйшн fee, введенного в bargain
-
-    Здесь же другая проблема: нужен протокол оффчейн обработки качества пришедшего -> акцепт полученного должен быть тогда и только тогда, 
-    когда с качеством полученного действительно согласны. опять же, если изменения стэйта на акцепт не будет, то пусть оплачивает штраф или транспортэйшн fee, введенного в bargain.
-
-    к слову, лучше сделать разными fee transportation и fee за неверное поведение!!!
-
-    Смена стэйта на ACCEPT -> продавец забирает средства, а стэйт их сделки меняется на финишд.
-
-    НАРИСУЙ СХЕМУ ДЛЯ СЕБЯ ЕЩЕ РАЗ
-
-
-     */
-
 }
