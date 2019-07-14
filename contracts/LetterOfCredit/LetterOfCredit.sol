@@ -28,7 +28,7 @@ contract BaseLetterOfCredit {
         _;
     }
 
-    enum States{ZS, INIT, VALIDATED, SENT, ACCEPTED, DECLINED, FINISHED}
+    enum States {ZS, INIT, VALIDATED, SENT, ACCEPTED, DECLINED, FINISHED}
 
     address public buyer;
     address public seller;
@@ -42,19 +42,21 @@ contract BaseLetterOfCredit {
     }
     mapping(address => Bargain) public bargainInitializedBy;
 
+    event StateChangedToBy(States, address);
+    event BargainCancelledBy(address);
+
     constructor(address _buyer, address _seller) public {
         buyer = _buyer;
         seller = _seller;
     }
 
-    ///FROM STATE 0 TO STATE 1
     function createBargain(uint256 _sum, uint256 _bargainDeadline, string calldata _description)
         external
         payable
         canInitializeBargain(_sum, _bargainDeadline)
         returns (bool)
     {
-        Bargain memory newBargain = Bargain({ // это дешево? а в одну строку на 72 строчке?
+        Bargain memory newBargain = Bargain({
             bargainSum: _sum,
             bargainDeadline: _bargainDeadline,
             description: _description,
@@ -66,10 +68,9 @@ contract BaseLetterOfCredit {
 
     function pushStateForwardTo(States _state) external onlyParties {
         changeStateTo(_state);
-        //emit
+        emit StateChangedToBy(_state, msg.sender);
     }
 
-    /// FROM STATE 1 AND 2 TO STATE 0
     function cancelBargainBuyer() external {
         require(msg.sender == buyer, "Invalid access");
         require(
@@ -83,7 +84,8 @@ contract BaseLetterOfCredit {
         
         (, uint256 buyersRefund) = calculatePaymentsInState(States.INIT);
         msg.sender.transfer(buyersRefund);
-        //emit
+
+        emit BargainCancelledBy(msg.sender);
     }
 
     function cancelBargainSeller() external {
@@ -99,10 +101,11 @@ contract BaseLetterOfCredit {
         (uint256 compensationToSeller, uint256 returnedToBuyer) = calculatePaymentsInState(States.SENT);
         msg.sender.transfer(compensationToSeller);
         address(uint160(buyer)).transfer(returnedToBuyer);
-        //emit
+        
+        emit BargainCancelledBy(msg.sender);
     }
 
-    function transferPaymentForParties() external {
+    function transferPaymentsToParties() external {
         require(
             bargainInitializedBy[buyer].bargainState == States.ACCEPTED ||
             bargainInitializedBy[buyer].bargainState == States.DECLINED,
@@ -116,7 +119,8 @@ contract BaseLetterOfCredit {
             address(uint160(buyer)).transfer(sumToBuyer);
         }
         address(uint160(seller)).transfer(sumToSeller);
-        //emit
+        
+        emit StateChangedToBy(States.FINISHED, msg.sender);
     }
 
     function changeStateTo(States _state) private {
