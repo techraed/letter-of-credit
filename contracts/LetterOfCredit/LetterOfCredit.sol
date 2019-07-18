@@ -1,7 +1,7 @@
 pragma solidity 0.5.10;
 
 
-import "../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";  /// delete "../../node_modules"
 
 
 contract BaseLetterOfCredit {
@@ -73,16 +73,10 @@ contract BaseLetterOfCredit {
 
     function cancelBargainBuyer() external {
         require(msg.sender == buyer, "Invalid access");
-        require(
-            bargainInitializedBy[msg.sender].bargainState == States.INIT ||
-            (bargainInitializedBy[msg.sender].bargainState == States.VALIDATED && 
-            now > bargainInitializedBy[msg.sender].bargainDeadline),
-            "Not correct state for buyer cancellation"
-        );
 
-        bargainInitializedBy[msg.sender].bargainState = States.ZS;
-        
+        changeStateTo(States.ZS);
         (, uint256 buyersRefund) = calculatePaymentsInState(States.INIT);
+        
         msg.sender.transfer(buyersRefund);
 
         emit BargainCancelledBy(msg.sender);
@@ -90,15 +84,10 @@ contract BaseLetterOfCredit {
 
     function cancelBargainSeller() external {
         require(msg.sender == seller, "Invalid access");
-        require(
-            bargainInitializedBy[buyer].bargainState == States.SENT &&
-            now > bargainInitializedBy[buyer].bargainDeadline,
-            "Not correct state for seller cancellation"
-        );
-
-        bargainInitializedBy[buyer].bargainState = States.ZS;
         
+        changeStateTo(States.ZS);
         (uint256 compensationToSeller, uint256 returnedToBuyer) = calculatePaymentsInState(States.SENT);
+        
         msg.sender.transfer(compensationToSeller);
         address(uint160(buyer)).transfer(returnedToBuyer);
         
@@ -106,13 +95,7 @@ contract BaseLetterOfCredit {
     }
 
     function transferPaymentsToParties() external {
-        require(
-            bargainInitializedBy[buyer].bargainState == States.ACCEPTED ||
-            bargainInitializedBy[buyer].bargainState == States.DECLINED,
-            "Bargain wasn't accpeted, neither declined"
-        );
-
-        bargainInitializedBy[buyer].bargainState = States.FINISHED;
+        changeStateTo(States.FINISHED);
         (uint256 sumToSeller, uint256 sumToBuyer) = calculatePaymentsInState(bargainInitializedBy[buyer].bargainState);
 
         if (sumToBuyer != 0) {
@@ -149,6 +132,37 @@ contract BaseLetterOfCredit {
             );
 
             bargainInitializedBy[msg.sender].bargainState = _state;
+        }
+
+        if (_state == States.ZS) {
+            if (msg.sender == buyer) {
+                require(
+                    bargainInitializedBy[msg.sender].bargainState == States.INIT ||
+                    (bargainInitializedBy[msg.sender].bargainState == States.VALIDATED && 
+                    now > bargainInitializedBy[msg.sender].bargainDeadline),
+                    "Not correct state for buyer cancellation"
+                );
+            }
+            
+            if (msg.sender == seller) {
+                require(
+                    bargainInitializedBy[buyer].bargainState == States.SENT &&
+                    now > bargainInitializedBy[buyer].bargainDeadline,
+                    "Not correct state for seller cancellation"
+                );
+            }
+
+            bargainInitializedBy[buyer].bargainState = States.ZS;
+        }
+
+        if (_state == States.FINISHED) {
+            require(
+                bargainInitializedBy[buyer].bargainState == States.ACCEPTED ||
+                bargainInitializedBy[buyer].bargainState == States.DECLINED,
+                "Bargain wasn't accpeted, neither declined"
+            );
+
+            bargainInitializedBy[buyer].bargainState = States.FINISHED;
         }
     }
 
