@@ -1,7 +1,7 @@
 pragma solidity 0.5.10;
 
 
-import "../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";  /// delete "../../node_modules"
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
 
 contract BaseLetterOfCredit {
@@ -45,11 +45,19 @@ contract BaseLetterOfCredit {
     event StateChangedToBy(States, address);
     event BargainCancelledBy(address);
 
+    /**
+     * @notice sets buyers and sellers addresses
+     */
     constructor(address _buyer, address _seller) public {
         buyer = _buyer;
         seller = _seller;
     }
 
+    /**
+     * @notice creates a new bargain
+     * @dev state for the bargain should be ZS (aka Zero state) or FINISHED
+     * The creator role is only for buyer. Maximum bargain period is 2 years.
+     */
     function createBargain(uint256 _sum, uint256 _bargainDeadline, string calldata _description)
         external
         payable
@@ -66,11 +74,20 @@ contract BaseLetterOfCredit {
         bargainInitializedBy[msg.sender] = newBargain;
     }
 
+    /**
+     * @notice this method should be used in order to bring contract to a right state to use other methods
+     * @dev main logic is in ```changeStateTo```.
+     */
     function pushStateForwardTo(States _state) external onlyParties {
         changeStateTo(_state);
+
         emit StateChangedToBy(_state, msg.sender);
     }
 
+    /**
+     * @notice bargain cancellation could be called only by buyer
+     * @dev changes state to ZS with no charge from buyer.
+     */
     function cancelBargainBuyer() external {
         require(msg.sender == buyer, "Invalid access");
 
@@ -82,6 +99,10 @@ contract BaseLetterOfCredit {
         emit BargainCancelledBy(msg.sender);
     }
 
+    /**
+     * @notice bargain cancellation could be called only by seller
+     * @dev changes state to ZS and charges ether from buyer to seller.
+     */
     function cancelBargainSeller() external {
         require(msg.sender == seller, "Invalid access");
         
@@ -94,6 +115,9 @@ contract BaseLetterOfCredit {
         emit BargainCancelledBy(msg.sender);
     }
 
+    /**
+     * @notice "pulls" ethers from a contract when letter of credit is accepted/declined
+     */
     function transferPaymentsToParties() external {
         changeStateTo(States.FINISHED);
         (uint256 sumToSeller, uint256 sumToBuyer) = calculatePaymentsInState(bargainInitializedBy[buyer].bargainState);
@@ -106,6 +130,10 @@ contract BaseLetterOfCredit {
         emit StateChangedToBy(States.FINISHED, msg.sender);
     }
 
+    /**
+     * @notice a private method that changes states in accordance to some conditions
+     * these conditions are: current state, msg.sender.
+     */
     function changeStateTo(States _state) private {
         if (_state == States.VALIDATED) {
             require(
@@ -166,6 +194,9 @@ contract BaseLetterOfCredit {
         }
     }
 
+    /**
+     * @notice calculates withdrawal amounts in accordance to bargain state
+     */
     function calculatePaymentsInState(States _state) private view returns(uint256 sumToSeller, uint256 sumToBuyer) {
         if (_state == States.INIT || _state == States.VALIDATED) {
             sumToBuyer = bargainInitializedBy[buyer].bargainSum;
