@@ -30,8 +30,8 @@ contract BaseLetterOfCredit {
 
     enum States {ZS, INIT, VALIDATED, SENT, ACCEPTED, DECLINED, FINISHED}
 
-    address public buyer;
-    address public seller;
+    address payable public buyer;
+    address payable public seller;
     address public shippingManager;
 
     struct Bargain {
@@ -42,13 +42,13 @@ contract BaseLetterOfCredit {
     }
     mapping(address => Bargain) public bargainInitializedBy;
 
-    event StateChangedToBy(States, address);
-    event BargainCancelledBy(address);
+    event StateChangedToBy(States to, address by);
+    event BargainCancelledBy(address by);
 
     /**
      * @notice sets buyers and sellers addresses
      */
-    constructor(address _buyer, address _seller, address _shippingManager) public {
+    constructor(address payable _buyer, address payable _seller, address _shippingManager) public {
         // no checks for 0 address
         buyer = _buyer;
         seller = _seller;
@@ -112,7 +112,7 @@ contract BaseLetterOfCredit {
         (uint256 compensationToSeller, uint256 returnedToBuyer) = calculatePaymentsInState(States.SENT);
         
         msg.sender.transfer(compensationToSeller);
-        address(uint160(buyer)).transfer(returnedToBuyer);
+        address(buyer).transfer(returnedToBuyer);
         
         emit BargainCancelledBy(msg.sender);
     }
@@ -121,13 +121,13 @@ contract BaseLetterOfCredit {
      * @notice "pulls" ethers from a contract when letter of credit is accepted/declined
      */
     function transferPaymentsToParties() external {
-        changeStateTo(States.FINISHED);
         (uint256 sumToSeller, uint256 sumToBuyer) = calculatePaymentsInState(bargainInitializedBy[buyer].bargainState);
+        changeStateTo(States.FINISHED);
 
         if (sumToBuyer != 0) {
-            address(uint160(buyer)).transfer(sumToBuyer);
+            address(buyer).transfer(sumToBuyer);
         }
-        address(uint160(seller)).transfer(sumToSeller);
+        address(seller).transfer(sumToSeller);
         
         emit StateChangedToBy(States.FINISHED, msg.sender);
     }

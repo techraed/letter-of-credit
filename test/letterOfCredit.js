@@ -101,7 +101,7 @@ contract('Letter of Credit base flow', async accounts => {
         assert.equal(state.bargainState.valueOf(), VALIDATED);
     });
 
-    it('sellers callback action to changed by buyer state', async() => {
+    it('seller sends goods, shipping manager changes state', async() => {
         // Please read the 4th paragraph in README.md
         let SENT = 3;
         let anyNonValidState = 5;
@@ -117,8 +117,26 @@ contract('Letter of Credit base flow', async accounts => {
         assert.equal(state.bargainState.valueOf(), SENT);
     });
 
+    it('buyer accepts goods', async() => {
+        let ACCEPTED = 4;
 
+        await letterOfCreditContract.pushStateForwardTo(ACCEPTED, { from: accs.buyer });
 
+        // invalid access
+        await expectThrow(letterOfCreditContract.pushStateForwardTo(ACCEPTED, { from: accs.attacker }));        
+    });
 
+    it('seller gets his sum', async() => {
+        let seller_balance_beforeTransfer = await web3.eth.getBalance(accs.seller);
+        let FINISHED = 6;
+        
+        await letterOfCreditContract.transferPaymentsToParties( {from: accs.attacker} );
+        let seller_balance_afterTransfer = await web3.eth.getBalance(accs.seller);
+        let bargain = await letterOfCreditContract.bargainInitializedBy.call(accs.buyer);
+        let bargainSum = bargain.bargainSum;
+
+        assert.equal(bargain.bargainState.valueOf(), FINISHED);
+        assert.equal(Number(seller_balance_beforeTransfer) + Number(bargainSum), seller_balance_afterTransfer.valueOf());
+    });
 
 });
