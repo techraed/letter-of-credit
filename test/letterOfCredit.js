@@ -1,6 +1,8 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
+// .env file should contain CONTRACTS_PATH, which is ~/path/to/contracts
+
 const LetterOfCredit = artifacts.require(process.env.CONTRACTS_PATH + "LetterOfCredit/LetterOfCredit.sol");
 const { time } = require('openzeppelin-test-helpers');
 
