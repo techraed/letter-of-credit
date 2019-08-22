@@ -75,10 +75,32 @@ contract('Letter of Credit base flow', async accounts => {
         );
 
         //Create valid letter of credit
-
         await letterOfCreditContract.createBargain(bargainSum, bargainDeadline, 'valid bargain', { from: accs.buyer, value: bargainSum});
-
-
+        
+        // INIT state
+        let state = await letterOfCreditContract.bargainInitializedBy.call(accs.buyer);
+        assert.equal(state.bargainState.valueOf(), 1);
     });
+
+    it('buyer gets considired that seller could be trusted and changes state', async() => {
+        /*
+         Once a bargain created and contract state is set to INIT, buyer should consider that seller could be trusted, he has a wanted product/service. 
+         When it's done, buyer changes state to VALIDATED. If doubts about seller occure, buyer can call cancelBargainBuyer and get his ether back.        
+         For the base flow we would not test bargain cancellation.
+         */
+        
+        // uint8 for State type in LetterOfCredit
+        let VALIDATED = 2;
+        let anyNonValidState = 5;
+
+        await expectThrow(letterOfCreditContract.pushStateForwardTo(anyNonValidState, { from: accs.buyer }));
+        await expectThrow(letterOfCreditContract.pushStateForwardTo(VALIDATED, { from: accs.attacker }));
+
+        await letterOfCreditContract.pushStateForwardTo(VALIDATED, { from: accs.buyer });
+        let state = await letterOfCreditContract.bargainInitializedBy.call(accs.buyer);
+        assert.equal(state.bargainState.valueOf(), VALIDATED);
+    });
+
+
 
 });

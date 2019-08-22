@@ -138,7 +138,7 @@ contract BaseLetterOfCredit {
     function changeStateTo(States _state) private {
         if (_state == States.VALIDATED) {
             require(
-                msg.sender == buyer ||
+                msg.sender == buyer &&
                 bargainInitializedBy[msg.sender].bargainState == States.INIT
             );
 
@@ -147,7 +147,7 @@ contract BaseLetterOfCredit {
 
         if (_state == States.SENT) {
             require(
-                msg.sender == shippingManager ||
+                msg.sender == shippingManager &&
                 bargainInitializedBy[buyer].bargainState == States.VALIDATED
             );
 
@@ -156,7 +156,7 @@ contract BaseLetterOfCredit {
 
         if (_state == States.ACCEPTED || _state == States.DECLINED) {
             require(
-                msg.sender == buyer ||
+                msg.sender == buyer &&
                 bargainInitializedBy[buyer].bargainState == States.SENT
             );
 
