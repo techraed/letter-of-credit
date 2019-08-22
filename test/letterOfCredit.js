@@ -34,7 +34,7 @@ contract('Letter of Credit base flow', async accounts => {
     before('deploying letter of credit contract', async() => {
 
         //deploy a contract
-        letterOfCreditContract = await LetterOfCredit.new(accs.buyer, accs.seller, { from: accs.buyer });
+        letterOfCreditContract = await LetterOfCredit.new(accs.buyer, accs.seller, accs.shippingManager, { from: accs.buyer });
         console.log('[DEBUG] Deployed LetterOfCredit contract, address: ' + letterOfCreditContract.address)
     });
 
@@ -100,6 +100,24 @@ contract('Letter of Credit base flow', async accounts => {
         let state = await letterOfCreditContract.bargainInitializedBy.call(accs.buyer);
         assert.equal(state.bargainState.valueOf(), VALIDATED);
     });
+
+    it('sellers callback action to changed by buyer state', async() => {
+        // Please read the 4th paragraph in README.md
+        let SENT = 3;
+        let anyNonValidState = 5;
+
+        //invalid access
+        await expectThrow(letterOfCreditContract.pushStateForwardTo(SENT, { from: accs.attacker }));
+
+        //wrong state transition test
+        await expectThrow(letterOfCreditContract.pushStateForwardTo(anyNonValidState, { from: accs.shippingManager }));
+
+        await letterOfCreditContract.pushStateForwardTo(SENT, { from: accs.shippingManager });
+        let state = await letterOfCreditContract.bargainInitializedBy.call(accs.buyer);
+        assert.equal(state.bargainState.valueOf(), SENT);
+    });
+
+
 
 
 

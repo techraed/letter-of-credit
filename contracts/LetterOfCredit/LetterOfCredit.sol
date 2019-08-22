@@ -48,10 +48,11 @@ contract BaseLetterOfCredit {
     /**
      * @notice sets buyers and sellers addresses
      */
-    constructor(address _buyer, address _seller) public {
+    constructor(address _buyer, address _seller, address _shippingManager) public {
         // no checks for 0 address
         buyer = _buyer;
         seller = _seller;
+        shippingManager = _shippingManager;
     }
 
     /**
